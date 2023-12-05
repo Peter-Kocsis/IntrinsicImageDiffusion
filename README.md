@@ -1,2 +1,2 @@
-# IntrinsicImageDiffusion
-Intrinsic Image Diffusion for Single-view Material Estimation
+# Intrinsic Image Diffusion for Single-view Material Estimation
+Coming soon!

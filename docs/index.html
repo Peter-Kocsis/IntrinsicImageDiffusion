@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Peter Kocsis</title>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <meta content="Deep Learning, Diffusion, Computer Graphics, Inverse Rendering, Appearance Decomposition" name="keywords">
+  <meta name="description" content="Intrinsic Image Diffusion for Single-view Material Estimation">
+  <meta name="author" content="Peter Kocsis, Vincent Sitzmann, Matthias Niessner">
+  <!-- Favicon -->
+  <link href="img/favicon.ico" rel="icon">
+  <!-- Google Web Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <!-- Icon Font Stylesheet -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.10.0/css/all.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
+  <!-- Libraries Stylesheet -->
+  <link href="lib/animate/animate.min.css" rel="stylesheet">
+  <link href="lib/lightbox/css/lightbox.min.css" rel="stylesheet">
+  <link href="lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet">
+  <!-- Customized Bootstrap Stylesheet -->
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+  <!-- Template Stylesheet -->
+  <link href="css/style.css" rel="stylesheet">
+  <!-- Font awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" integrity="sha512-ElRFoEQdI5Ht6kZvyzXhYG9NqjtkmlkfYk0wr6wHxU9JEHakS7UJZNeml5ALk+8IKlU6jDgMabC3vkumRokgJA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="js/chart-utils.min.js"></script>
+
+</head>
+
+<body data-bs-spy="scroll" data-bs-target=".navbar" data-bs-offset="51">
+  <!-- Header Start -->
+  <div class="container-fluid bg-light my-6 mt-0" id="home">
+    <div class="container">
+      <div class="row justify-content-center">
+        <h2 class="display-32 text-center mt-5 mb-3">Intrinsic Image Diffusion for Single-view Material Estimation</h2>
+        <h4 class="display-32 text-center">ArXiv Preprint 2023</h4>
+      </div>
+      <div class="row justify-content-center mt-3 mb-2">
+        <div class="col-lg-2">
+          <a href="https://peter-kocsis.github.io/" title="Peter Kocsis"><h5 class="display-32 text-center">Peter Kocsis</h5></a>
+          <h6 class="display-32 text-center">TU Munich</h6>
+        </div>
+        <div class="col-lg-2">
+          <a href="https://niessnerlab.org/members/matthias_niessner/profile.html" title="Vincent Sitzmann"><h5 class="display-32 text-center">Vincent Sitzmann</h5></a>
+          <h6 class="display-32 text-center">MIT EECS</h6>
+        </div>
+        <div class="col-lg-2">
+          <a href="https://niessnerlab.org/members/matthias_niessner/profile.html" title="Matthias Niessner"><h5 class="display-32 text-center">Matthias Nie&szlig;ner</h5></a>
+          <h6 class="display-32 text-center">TU Munich</h6>
+        </div>
+      </div>
+      <div class="row justify-content-center">
+        <div class="col-lg-2 text-center">
+          <a href="https://arxiv.org/pdf/2210.05657.pdf" title="Paper"><i class="bi bi-file-earmark-text" style="font-size: 2em"></i><br>Paper</a></div>
+        <div class="col-lg-2 text-center">
+          <a href="https://github.com/Peter-Kocsis/LowDataGeneralization" title="Code"><i class="bi bi-github" style="font-size: 2em"></i><br>Code</div></a>
+      </div>
+    </div>
+  </div>
+  <!-- Header End -->
+  <!-- Video Start -->
+  <div class="container-xxl">
+    <div class="row justify-content-center">
+      <div class="video-container" style="text-align:center">
+        <iframe class='video' width='720' height='405' src="https://www.youtube.com/embed/pYxvkn_tRjo" frameborder="0"
+                        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen>
+        </iframe>
+      </div>
+    </div>
+  </div>
+  <!-- Video End -->
+  <!-- Abstract Start -->
+  <div class="container-xxl" id="abstract">
+    <div class="container">
+      <div class="row wow fadeInLeft" data-wow-delay="0.1s">
+        <h1 class="display-32" style="padding:0">Abstract</h1>
+        We present Intrinsic Image Diffusion, a generative model for appearance decomposition of indoor scenes.
+        Given a single input view, we sample multiple possible material explanations represented as albedo, roughness, and metallic maps. 
+        Appearance decomposition poses a considerable challenge in computer vision due to the inherent ambiguity between lighting and material properties and the lack of real datasets. 
+        To address this issue, we advocate for a probabilistic formulation, where instead of attempting to directly predict the true material properties, we employ a conditional generative model to sample from the solution space. 
+        Furthermore, we show that utilizing the strong learned prior of recent diffusion models trained on large-scale real-world images can be adapted to material estimation and highly improves the generalization to real images. 
+        Our method produces significantly sharper, more consistent, and more detailed materials, outperforming state-of-the-art methods by 1.5dB on PSNR and by 45% better FID score on albedo prediction. 
+        We demonstrate the effectiveness of our approach through experiments on both synthetic and real-world datasets.
+      </div>
+    </div>
+  </div>
+  <!-- Abstract End -->
+
+  <!-- Method Start -->
+  <div class="container-xxl mt-5" id="method">
+    <div class="container">
+      <div class="row wow fadeInRight" data-wow-delay="0.5s">
+        <h1 class="display-32" style="padding:0">Method</h1>
+
+        <h2 class="display-32 mt-3" style="padding:0">Material Diffusion</h2>
+        <img src="img/pipeline.jpg" style="padding:0" alt="Material Diffusion" />
+          We train a conditional diffusion model to predict albedo and BRDF properties (roughness and metallic) given
+          a single input image. We adapt the learned prior of Stable Diffusion [28] by fine-tuning it on the synthetic InteriorVerse [40] dataset. (i)
+          First, we separately encode the ground-truth (GT) albedo and BRDF properties with a fixed encoder to obtain the material feature maps.
+          We also encode the conditioning image with a trainable encoder. (ii) We add noise to the material features and use our conditional diffusion
+          model to predicted the noise. (iii) The training is supervised with L2 loss between the original and predicted noise. (iv) Using the predicted
+          noise, the predicted material properties can be decoded separately.
+
+        <h2 class="display-32 mt-3" style="padding:0">Lighting Optimization</h2>
+        <div class="container justify-content-center" style="text-align:center">
+          <img src="img/lighting_optimization.jpg" alt="Lighting Optimization" style="width:50%"/>
+        </div>
+        Using our predicted material, we fit 48 point light sources and a global pre-integrated environment lighting to the scene using a reconstruction loss. 
+      </div>
+    </div>
+  </div>
+  <!-- Method End -->
+  
+  <!-- Citation Start -->
+  <div class="container-fluid bg-light mt-5" id="citation">
+    <div class="container">
+      <div class="row justify-content-center">
+        <h1 class="display-32">Citation</h1>
+        <div class="col-lg-6">
+          @inproceedings{kocsis2023iid,<br>
+              author = {Peter Kocsis<br>
+                        and Vincent Sitzmann <br>
+                        and Matthias Nie{\ss}ner},<br>
+              title = {Intrinsic Image Diffusion for Single-view Material Estimation},<br>
+              booktitle = {arxiv},<br>
+              year={2023}<br>
+          }
+        </div>
+        <div class="col-lg-2">
+          <button onclick="copy_text()" type="button" class="btn btn-light"><i class="fa fa-regular fa-copy" style="font-size: 2em"></i> Copy citation</button>
+        </div>
+        <div id="text_copied_message">Citation copied!</div>
+      </div>
+    </div>
+  </div>
+  <!-- Citation End -->
+  
+  <!-- JavaScript Libraries -->
+  <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="lib/wow/wow.min.js"></script>
+  <script src="lib/easing/easing.min.js"></script>
+  <script src="lib/waypoints/waypoints.min.js"></script>
+  <script src="lib/typed/typed.min.js"></script>
+  <script src="lib/counterup/counterup.min.js"></script>
+  <script src="lib/owlcarousel/owl.carousel.min.js"></script>
+  <script src="lib/isotope/isotope.pkgd.min.js"></script>
+  <script src="lib/lightbox/js/lightbox.min.js"></script>
+  <!-- Template Javascript -->
+  <script src="js/main.js"></script>
+
+  <script>
+    function copy_text() {
+      var copyText = '@inproceedings{kocsis2022lowdataregime, \r\n\
+              author = {Peter Kocsis \r\n\
+                        and Vincent Sitzmann \r\n\
+                        and Matthias Niessner}, \r\n\
+              title = {Intrinsic Image Diffusion for Single-view Material Estimation}, \r\n\
+              booktitle = {arxiv}, \r\n\
+              year={2023} \r\n\
+          }'
+      navigator.clipboard.writeText(copyText);
+      document.execCommand("copy");
+
+      // Get the snackbar DIV
+      var x = document.getElementById("text_copied_message");
+      
+      // Add the "show" class to DIV
+      x.className = "show";
+
+      // After 3 seconds, remove the show class from DIV
+      setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+    }
+    </script>
+</body>
+
+</html>
