@@ -9,7 +9,7 @@
   <meta name="description" content="Intrinsic Image Diffusion for Single-view Material Estimation">
   <meta name="author" content="Peter Kocsis, Vincent Sitzmann, Matthias Niessner">
   <!-- Favicon -->
-  <link href="img/favicon.ico" rel="icon">
+  <link href="static/favicon.ico" rel="icon">
   <!-- Google Web Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -18,35 +18,34 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.10.0/css/all.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css" rel="stylesheet">
   <!-- Libraries Stylesheet -->
-  <link href="lib/animate/animate.min.css" rel="stylesheet">
-  <link href="lib/lightbox/css/lightbox.min.css" rel="stylesheet">
+  <link href="lib/animate/animate.css" rel="stylesheet">
   <link href="lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet">
   <!-- Customized Bootstrap Stylesheet -->
   <link href="css/bootstrap.min.css" rel="stylesheet">
-  <!-- Template Stylesheet -->
+  <!-- Stylesheet -->
   <link href="css/style.css" rel="stylesheet">
   <!-- Font awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" integrity="sha512-ElRFoEQdI5Ht6kZvyzXhYG9NqjtkmlkfYk0wr6wHxU9JEHakS7UJZNeml5ALk+8IKlU6jDgMabC3vkumRokgJA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script src="js/chart-utils.min.js"></script>
+  <!-- Slideshow style -->
+  <link rel="stylesheet" href="lib/slideshow/slideshow.css">
 
 </head>
 
 <body data-bs-spy="scroll" data-bs-target=".navbar" data-bs-offset="51">
   <!-- Header Start -->
-  <div class="container-fluid bg-light my-6 mt-0" id="home">
+  <div class="container-fluid bg-light my-6 mt-0 mb-1" id="home">
     <div class="container">
       <div class="row justify-content-center">
         <h2 class="display-32 text-center mt-5 mb-3">Intrinsic Image Diffusion for Single-view Material Estimation</h2>
         <h4 class="display-32 text-center">ArXiv Preprint 2023</h4>
       </div>
-      <div class="row justify-content-center mt-3 mb-2">
+      <div class="row justify-content-center mt-3 mb-1">
         <div class="col-lg-2">
           <a href="https://peter-kocsis.github.io/" title="Peter Kocsis"><h5 class="display-32 text-center">Peter Kocsis</h5></a>
           <h6 class="display-32 text-center">TU Munich</h6>
         </div>
         <div class="col-lg-2">
-          <a href="https://niessnerlab.org/members/matthias_niessner/profile.html" title="Vincent Sitzmann"><h5 class="display-32 text-center">Vincent Sitzmann</h5></a>
+          <a href="https://www.vincentsitzmann.com/" title="Vincent Sitzmann"><h5 class="display-32 text-center">Vincent Sitzmann</h5></a>
           <h6 class="display-32 text-center">MIT EECS</h6>
         </div>
         <div class="col-lg-2">
@@ -54,17 +53,44 @@
           <h6 class="display-32 text-center">TU Munich</h6>
         </div>
       </div>
-      <div class="row justify-content-center">
+      <div class="row justify-content-center mb-1">
         <div class="col-lg-2 text-center">
-          <a title="Paper"><i class="bi bi-file-earmark-text" style="font-size: 2em"></i><br>Paper</a></div>
+          <a title="Paper"><i class="bi bi-file-earmark-text" style="font-size: 2em"></i><br>Paper (coming soon)</a></div>
         <div class="col-lg-2 text-center">
           <a title="Code"><i class="bi bi-github" style="font-size: 2em"></i><br>Code (coming soon)</div></a>
       </div>
     </div>
   </div>
   <!-- Header End -->
+  <!-- Teaser Start -->
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="video-container" style="text-align:center">
+        <video autoplay="" muted="" loop="" width="100%" height="auto" style="pointer-events: none;">
+            <source src="./static/teaser.mp4" type="video/mp4">
+        </video>
+      </div>
+    </div>
+  </div>
+  <!-- Teaser End -->
+  <!-- Abstract Start -->
+  <div class="container-xxl" id="abstract">
+    <div class="container">
+      <div class="row wow fadeInLeft" data-wow-delay="0.1s">
+        <h1 class="display-32" style="padding:0">Abstract</h1>
+        We present Intrinsic Image Diffusion, a generative model for appearance decomposition of indoor scenes.
+        Given a single input view, we sample multiple possible material explanations represented as albedo, roughness, and metallic maps.
+        Appearance decomposition poses a considerable challenge in computer vision due to the inherent ambiguity between lighting and material properties and the lack of real datasets.
+        To address this issue, we advocate for a probabilistic formulation, where instead of attempting to directly predict the true material properties, we employ a conditional generative model to sample from the solution space.
+        Furthermore, we show that utilizing the strong learned prior of recent diffusion models trained on large-scale real-world images can be adapted to material estimation and highly improves the generalization to real images.
+        Our method produces significantly sharper, more consistent, and more detailed materials, outperforming state-of-the-art methods by 1.5dB on PSNR and by 45% better FID score on albedo prediction.
+        We demonstrate the effectiveness of our approach through experiments on both synthetic and real-world datasets.
+      </div>
+    </div>
+  </div>
+  <!-- Abstract End -->
   <!-- Video Start -->
-  <div class="container-xxl">
+  <!-- <div class="container-xxl">
     <div class="row justify-content-center">
       <div class="video-container" style="text-align:center">
         <iframe class='video' width='720' height='405' src="https://www.youtube.com/embed/pYxvkn_tRjo" frameborder="0"
@@ -73,24 +99,81 @@
         </iframe>
       </div>
     </div>
-  </div>
+  </div> -->
   <!-- Video End -->
-  <!-- Abstract Start -->
-  <div class="container-xxl" id="abstract">
+
+  <!-- Results Start -->
+  <div class="container-xxl mt-5" id="method">
     <div class="container">
-      <div class="row wow fadeInLeft" data-wow-delay="0.1s">
-        <h1 class="display-32" style="padding:0">Abstract</h1>
-        We present Intrinsic Image Diffusion, a generative model for appearance decomposition of indoor scenes.
-        Given a single input view, we sample multiple possible material explanations represented as albedo, roughness, and metallic maps. 
-        Appearance decomposition poses a considerable challenge in computer vision due to the inherent ambiguity between lighting and material properties and the lack of real datasets. 
-        To address this issue, we advocate for a probabilistic formulation, where instead of attempting to directly predict the true material properties, we employ a conditional generative model to sample from the solution space. 
-        Furthermore, we show that utilizing the strong learned prior of recent diffusion models trained on large-scale real-world images can be adapted to material estimation and highly improves the generalization to real images. 
-        Our method produces significantly sharper, more consistent, and more detailed materials, outperforming state-of-the-art methods by 1.5dB on PSNR and by 45% better FID score on albedo prediction. 
-        We demonstrate the effectiveness of our approach through experiments on both synthetic and real-world datasets.
+      <div class="row wow fadeInRight" data-wow-delay="0.5s">
+        <h1 class="display-32" style="padding:0">Results</h1>
+
+        <!-- Slideshow container -->
+        <div class="slideshow-container">
+
+          <!-- Full-width images with number and caption text -->
+          <div class="mySlides">
+            <img src="static/baseline_comparison_0.jpg" style="width:100%">
+          </div>
+
+          <div class="mySlides">
+            <img src="static/baseline_comparison_1.jpg" style="width:100%">
+          </div>
+
+          <div class="mySlides">
+            <img src="static/baseline_comparison_2.jpg" style="width:100%">
+          </div>
+
+          <div class="mySlides">
+            <img src="static/baseline_comparison_3.jpg" style="width:100%">
+          </div>
+
+          <!-- Next and previous buttons -->
+          <a class="prev" onclick="plusSlides(-1)">&#10094;</a>
+          <a class="next" onclick="plusSlides(1)">&#10095;</a>
+        </div>
+        <br>
+
+        <!-- The dots/circles -->
+        <div style="text-align:center">
+          <span class="dot" onclick="currentSlide(1)"></span>
+          <span class="dot" onclick="currentSlide(2)"></span>
+          <span class="dot" onclick="currentSlide(3)"></span>
+          <span class="dot" onclick="currentSlide(4)"></span>
+        </div>
+        
       </div>
     </div>
   </div>
-  <!-- Abstract End -->
+  <!-- Results End -->
+
+  <!-- Applications Start -->
+  <div class="container-xxl mt-5" id="method">
+    <div class="container">
+      <div class="row wow fadeInLeft" data-wow-delay="0.5s">
+        <h1 class="display-32" style="padding:0">Applications</h1>
+
+        <h2 class="display-32 mt-3" style="padding:0">Material Editing</h2>
+        <div class="row justify-content-center">
+          <div class="video-container" style="text-align:center">
+            <video autoplay="" muted="" loop="" width="100%" height="auto" style="pointer-events: none;">
+                <source src="./static/material_editing.mp4" type="video/mp4">
+            </video>
+          </div>
+        </div>
+
+        <h2 class="display-32 mt-3" style="padding:0">Lighting Editing</h2>
+        <div class="row justify-content-center">
+          <div class="video-container" style="text-align:center">
+            <video autoplay="" muted="" loop="" width="100%" height="auto" style="pointer-events: none;">
+                <source src="./static/light_editing.mp4" type="video/mp4">
+            </video>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Applications End -->
 
   <!-- Method Start -->
   <div class="container-xxl mt-5" id="method">
@@ -99,7 +182,7 @@
         <h1 class="display-32" style="padding:0">Method</h1>
 
         <h2 class="display-32 mt-3" style="padding:0">Material Diffusion</h2>
-        <img src="img/pipeline.jpg" style="padding:0" alt="Material Diffusion" />
+        <img src="static/pipeline.jpg" style="padding:0" alt="Material Diffusion" />
           We train a conditional diffusion model to predict albedo and BRDF properties (roughness and metallic) given
           a single input image. We adapt the learned prior of Stable Diffusion [28] by fine-tuning it on the synthetic InteriorVerse [40] dataset. (i)
           First, we separately encode the ground-truth (GT) albedo and BRDF properties with a fixed encoder to obtain the material feature maps.
@@ -109,14 +192,14 @@
 
         <h2 class="display-32 mt-3" style="padding:0">Lighting Optimization</h2>
         <div class="container justify-content-center" style="text-align:center">
-          <img src="img/lighting_optimization.jpg" alt="Lighting Optimization" style="width:50%"/>
+          <img src="static/lighting_optimization.jpg" alt="Lighting Optimization" style="width:50%"/>
         </div>
-        Using our predicted material, we fit 48 point light sources and a global pre-integrated environment lighting to the scene using a reconstruction loss. 
+        Using our predicted material, we fit 48 point light sources and a global pre-integrated environment lighting to the scene using a reconstruction loss.
       </div>
     </div>
   </div>
   <!-- Method End -->
-  
+
   <!-- Citation Start -->
   <div class="container-fluid bg-light mt-5" id="citation">
     <div class="container">
@@ -140,20 +223,15 @@
     </div>
   </div>
   <!-- Citation End -->
-  
+
   <!-- JavaScript Libraries -->
   <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="lib/wow/wow.min.js"></script>
-  <script src="lib/easing/easing.min.js"></script>
-  <script src="lib/waypoints/waypoints.min.js"></script>
-  <script src="lib/typed/typed.min.js"></script>
-  <script src="lib/counterup/counterup.min.js"></script>
-  <script src="lib/owlcarousel/owl.carousel.min.js"></script>
-  <script src="lib/isotope/isotope.pkgd.min.js"></script>
-  <script src="lib/lightbox/js/lightbox.min.js"></script>
+  <script src="lib/wow/wow.js"></script>
   <!-- Template Javascript -->
   <script src="js/main.js"></script>
+  <!-- Slideshow Javascript -->
+  <script src="lib/slideshow/slideshow.js"></script>
 
   <script>
     function copy_text() {
@@ -170,7 +248,7 @@
 
       // Get the snackbar DIV
       var x = document.getElementById("text_copied_message");
-      
+
       // Add the "show" class to DIV
       x.className = "show";
 
