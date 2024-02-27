@@ -1,0 +1,12 @@
+channels:
+  - anaconda
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - pip=23.1.2
+  - python=3.8.16
+  - pytorch=1.13.1
+  - pytorch-cuda=11.7
+  - pip:
+    - stable-diffusion-sdkit==2.1.3
