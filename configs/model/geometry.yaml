@@ -1,0 +1,3 @@
+_target_: iid.geometry_prediction.omnidata_model.OmnidataPredictor
+depth_ckpt: models/geometry_prediction/omnidata_dpt_depth_v2.pth
+normal_ckpt: models/geometry_prediction/omnidata_dpt_normal_v2.pth

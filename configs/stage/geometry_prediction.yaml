@@ -1,0 +1,28 @@
+# @package _global_
+
+# to execute this experiment run:
+# python -m iid.geometry_prediction
+
+defaults:
+  - /logger: wandb
+  - /model: geometry
+  - /environment@_here_: default
+
+# ======================== DATAMODULE ============================
+
+data:
+  input_path: res/test.png
+  include_metadata: True
+
+output:
+  folder: output
+  as_dataset: False
+
+# ======================== ENVIRONMENT ============================
+
+task_name: geometry_prediction
+
+seed: 0
+
+device: auto
+

@@ -1,3 +1,9 @@
+# Logs
+logs/
+
+# Output
+output/
+
 # PyCharm
 .idea/
 
@@ -134,4 +140,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
 

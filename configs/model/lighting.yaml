@@ -1,0 +1,44 @@
+_target_: iid.lighting_optimization.model.EmissiveLightingModel
+_convert_: object
+renderer_args:
+  imWidth: 320
+  imHeight: 240
+  use_ssrt: False
+  use_specular: True
+lighting_model:
+  _target_: iid.lighting_optimization.lighting.ComposeLighting
+  lightings:
+    point_lights:
+      _target_: iid.lighting_optimization.lighting.FusedSGGridPointLighting
+      num_lights: [ 6, 8, 1 ]
+      vpos_init: True
+      im_init: False
+    envmap:
+      _target_: iid.lighting_optimization.lighting.GlobalIncidentLighting
+      value:
+        _target_: iid.lighting_optimization.lighting.MultipleSphericalGaussians
+loss_cfg:
+  w_pos_reg: 1e-6
+  w_val_reg: 1e-4
+optimizer:
+  point_lights:
+    _target_: torch.optim.Adam
+    _partial_: true
+    lr: 5e-2
+    weight_decay: 0
+  envmap:
+    _target_: torch.optim.Adam
+    _partial_: true
+    lr: 5e-2
+    weight_decay: 0
+scheduler:
+  _partial_: True
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  mode: min
+  factor: 0.5
+  patience: 100
+  threshold: 1e-4
+  threshold_mode: rel
+  cooldown: 300
+  verbose: True
+

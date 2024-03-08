@@ -4,17 +4,16 @@ Based on https://github.com/CompVis/latent-diffusion/blob/a506df5756472e2ebaf907
 from typing import Any
 
 import torch
+from batch import Batch
 from pytorch_lightning import LightningModule
-from einops import rearrange, repeat
+from einops import rearrange
 
 from omegaconf import ListConfig
 
 from ldm.models.diffusion.ddim import DDIMSampler
 
-from iid.ldm.ddpm import LatentImages2ImageDiffusion
-from iid.utils import IterableNamespace
+from iid.material_diffusion.ldm.ddpm import LatentImages2ImageDiffusion
 from iid.utils import init_logger
-from iid.utils import TrainStage
 
 
 # Monkey patching for MPS support
@@ -87,22 +86,22 @@ class IntrinsicImageDiffusion(LightningModule):
         return torch.nan_to_num(conditioning_img, nan=0, posinf=max_val, neginf=min_val)
 
     def encode(self, x):
-        if isinstance(x, IterableNamespace):
-            z = []
-            for key in x.keys():
-                z_key = self.encode(x[key])
-                z.append(z_key)
-            z = torch.cat(z, dim=1)
+        if isinstance(x, Batch):
+            z_batch = x.map(self.encode)
+            z = torch.cat([val for _, val in z_batch.items()], dim=1)
             return z
         else:
             return self.diffusion_module.get_first_stage_encoding(self.diffusion_module.encode_first_stage(x))
 
     def decode(self, z):
-        x = IterableNamespace()
+        x = Batch()
         if isinstance(self.diffusion_config.first_stage_key, ListConfig):
-            z_s = torch.split(z, z.shape[1] // len(self.diffusion_config.first_stage_key), dim=1)
-            for key, z_key in zip(self.diffusion_config.first_stage_key, z_s):
-                x[key] = self.diffusion_module.decode_first_stage(z_key)
+            z_s = Batch.from_tensor(z,
+                                    {key: z.shape[1] // len(self.diffusion_config.first_stage_key)
+                                     for key in self.diffusion_config.first_stage_key},
+                                    dim=1,
+                                    split_fn=torch.split)
+            x = z_s.map(self.diffusion_module.decode_first_stage)
         else:
             x[self.diffusion_config.first_stage_key] = self.diffusion_module.decode_first_stage(z)
         return x
@@ -124,10 +123,11 @@ class IntrinsicImageDiffusion(LightningModule):
         :return: Sampled image tensor of shape (batch_size, channels, height, width) in the range of [0, 1]
         """
         # Prepare the conditioning
-        conditioning = IterableNamespace()
+        conditioning = Batch()
         conditioning.im = self._nan_to_num(conditioning_img * 2 - 1).float()
 
         # Sampling logic
+        conditioning.map(rearrange, pattern='b c h w -> b h w c')
         for k in conditioning.keys():
             conditioning[k] = rearrange(conditioning[k], 'b c h w -> b h w c')
 
