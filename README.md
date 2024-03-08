@@ -28,23 +28,27 @@ We utilize the strong prior of diffusion models and formulate the material estim
 Our project has the following structure:
 
 ```
+├── configs               <- Hydra config files
+├── data                  <- Datasets
 ├── docs                  <- Project page
 ├── iid                   <- Our main package for Intrinsic Image Diffusion
-│   ├── ldm                  <- Stable Diffusion related code
-│   ├── iid.py               <- Our main module
-│   ├── transform.py         <- Data transforms
-│   └── utils.py             <- Utility functions and classes
+│   ├── geometry_prediction   <- Code for geometry prediction
+│   ├── lighting_optimization <- Code for lighting optimization
+│   └── material_diffusion    <- Code for material diffusion
+├── logs                   <- Hydra and WandB logs
 ├── models                 <- Model and config folder
 ├── res                    <- Documentation resources
 ├── environment.yaml       <- Env file for creating conda environment
+├── LICENSE
 └── README.md
 ```
 
 # Installation
 To install the dependencies, you can use the provided environment file:
-
 ```
 conda env create -n iid -f environment.yml
+conda activate iid
+pip install stable-diffusion-sdkit==2.1.5 --no-deps
 ```
 
 #### (Optional) XFormers
@@ -52,41 +56,94 @@ For better performance, installing [XFormers](https://github.com/facebookresearc
 ```
 conda install xformers -c xformers
 ```
+The code has been tested with Ubuntu 22.04.3 LTS and Ubuntu 20.04.3 LTS with RTX_3090 and A4000 GPUs. 
+
 
 ### Model
-Download the model to the `models` folder.
+#### Material Diffusion
+Download our Material Diffusion model to the `models` folder.
 ```
-wget "https://syncandshare.lrz.de/dl/fiAomi6K8g5dywJBwAxFiZ/iid_e250.pth" -O "models/iid_e250.pth"
+mkdir -p models/material_diffusion
+wget "https://syncandshare.lrz.de/dl/fiAomi6K8g5dywJBwAxFiZ/iid_e250.pth" -O "models/material_diffusion/iid_e250.pth"
 ```
 
-# Material Diffusion Training
+#### OmniData
+For our full pipeline, download the OmniData model to the `models` folder.
+```
+mkdir -p models/geometry_prediction
+wget "https://zenodo.org/records/10447888/files/omnidata_dpt_depth_v2.ckpt?download=1" -O "models/geometry_prediction/omnidata_dpt_depth_v2.pth"
+wget "https://zenodo.org/records/10447888/files/omnidata_dpt_normal_v2.ckpt?download=1" -O "models/geometry_prediction/omnidata_dpt_normal_v2.pth"
+```
+
+# Logging
+The code supports logging to console and [WandB](https://wandb.ai/site). 
+The default config is to log to WandB, but the presented commands override this to console, so you can run them without an account. 
+If you wish to change to WandB, drop the `logger=console` argument from the commands and edit `configs/logger/wandb.yaml` with your information.
+
+# Training
 Coming soon!
 
-# Material Diffusion Inference
-Running the model requires at least 10GB of GPU memory.
-Code for inference can be found in our main module. 
-This script will load the test image from the `res` folder, predicts a single material explanation and saves it to the same folder. 
-You can run it with the following command:
+# Inference
+The full pipeline consists of three stages: geometry prediction, material diffusion and lighting optimization.
+You can run all stages together with the following command **(WandB logging is recommended)**.
+THis script loads the test image from `data/test/im` folder, predicts the geometry and materials and extends the dataset with the predictions, then optimizes for the lighting. 
+For more details, you can check `configs/intrinsic_image_diffusion.yaml`.
 ```
-python -m iid --input res/test.png --output output/test_out.png 
+python -m iid
+```
+Expected run results can be found in this [WandB report](https://api.wandb.ai/links/peterkocsis/3pbbalc7).
+
+## Stage 1 - Geometry Prediction
+This script will load the test image from the `res` folder, predicts the depth and normals and saves it to the `output` folder. 
+To predict the geometry, you can use the following command. For more details, you can check `configs/stage/geometry_prediction.yaml`.
+```
+python -m iid.geometry_prediction logger=console
+```
+<div  class="row">
+  <img src="res/test.png"/> 
+  <img src="res/test_depth.png"/>
+  <img src="res/test_normal.png"/>
+</div>
+
+## Stage 2 - Material Diffusion
+Running the model requires at least 10GB of GPU memory. 
+This script will load the test image from the `res` folder, predicts the depth and normals and saves it to the `output` folder
+You can run it with the following command. For more details, you can check `configs/stage/material_diffusion.yaml`.
+```
+python -m iid.material_diffusion logger=console
 ```
 By default, the script predicts 10 material explanations and computes the average. 
 
- <div  class="row">
+<div  class="row">
   <img src="res/test.png"/> 
   <img src="res/test_out.png"/>
   <img src="res/test_out_roughness.png"/>
   <img src="res/test_out_metal.png"/>
 </div>
 
-# Lighting Optimization
-Coming soon!
+## Stage 3 - Lighting Optimization
+The lighting optimization part uses [PyTorch Lightning](https://github.com/Lightning-AI/pytorch-lightning) with iterative pruning and early stopping. 
+As more and more light sources are pruned, the faster the iteration time becomes. 
+It requires predicted geometry and materials.
+This script will load the dataset from the `data/test` folder, optimizes for the lighting (envmap and 48xSG point lights) and then saves the checkpoints to `data/test/lighting`. 
+The easiest way to get the predictions prepared is to run the full pipeline or copy the data from `data/test_out`.
+You can run it with the following command. For more details, you can check `configs/stage/lighting_optimization.yaml`.
+```
+python -m iid.lighting_optimization logger=console
+```
+<div  class="row">
+  <img src="res/test.png"/> 
+  <img src="res/test_shading.png"/>
+  <img src="res/test_rerendering.png"/>
+</div>
+
 
 # Acknowledgements
 This project is built upon [Latent Diffusion Models](https://github.com/CompVis/latent-diffusion), we are grateful for the authors open-sourcing their project. 
 We used [Hydra](https://github.com/facebookresearch/hydra) configuration management with [Pythorch Lightning](https://github.com/Lightning-AI/pytorch-lightning). 
 Our model was trained on the high-quality [InteriorVerse](https://interiorverse.github.io/) synthetic indoor dataset. 
 Rendering model was inspired by [Zhu et. al. 2022](https://github.com/jingsenzhu/IndoorInverseRendering). 
+Our full pipeline uses [OmniData](https://github.com/EPFL-VILAB/omnidata) for geometry prediction.
 
 # Citation
 If you find our code or paper useful, please cite

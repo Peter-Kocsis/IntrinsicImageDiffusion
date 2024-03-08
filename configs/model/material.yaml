@@ -1,0 +1,5 @@
+config_path: models/material_diffusion/config.yaml
+ckpt_path: models/material_diffusion/iid_e250.pth
+num_samples: 10
+sampling_batch_size: 1
+

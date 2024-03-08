@@ -1,0 +1,186 @@
+# @package _global_
+
+# to execute this experiment run:
+# python -m iid
+
+defaults:
+  - logger: wandb
+  - environment@_here_: default
+  - model@stages.stage1_geom.model: geometry
+  - data@stages.stage1_geom.data: iid_data
+
+  - data@stages.stage2_mat.data: iid_data
+  - model@stages.stage2_mat.model: material
+
+  - data@stages.stage3_light.data: iid_data
+  - model@stages.stage3_light.model: lighting
+
+
+stages:
+  # ======================== STAGE 1 - GEOMETRY ============================
+  stage1_geom:
+    skip: False
+    stage_fn:
+      _partial_: True
+      _target_: iid.geometry_prediction.__main__.geometry_prediction
+
+    data:
+      dataset_cfg:
+        root: ${paths.data_dir}test/
+        features_to_include: [ "im" ]
+        include_metadata: True
+
+    output:
+      folder: ${paths.data_dir}test/
+      as_dataset: True
+
+    logger: ${logger}
+
+    seed: ${seed}
+    device: ${device}
+
+
+  # ======================== STAGE 2 - MATERIAL ============================
+  stage2_mat:
+    skip: False
+    stage_fn:
+      _partial_: True
+      _target_: iid.material_diffusion.__main__.material_diffusion
+
+    data:
+      dataset_cfg:
+        root: ${paths.data_dir}test/
+        features_to_include: [ "im" ]
+        include_metadata: True
+
+    output:
+      folder: ${paths.data_dir}test/
+      as_dataset: True
+
+    logger: ${logger}
+
+    seed: ${seed}
+    device: ${device}
+
+
+  # ======================== STAGE 3 - LIGHTING ============================
+  stage3_light:
+    skip: False
+    stage_fn:
+      _partial_: True
+      _target_: iid.lighting_optimization.__main__.lighting_optimization
+
+    logger: ${logger}
+
+    seed: ${seed}
+    device: ${device}
+
+    data:
+      dataset_cfg:
+        root: ${paths.data_dir}test/
+        features_to_include: [ "im", "albedo", "material", "normal", "depth" ]
+        transform:
+          _target_: iid.data.BatchTransform
+          transform:
+            _default:
+              _target_: torchvision.transforms.Compose
+              transforms:
+                - _target_: torchvision.transforms.ToTensor
+                - _target_: iid.data.NanToNumTransform
+                - _target_: torchvision.transforms.Resize
+                  size: [ 240, 320 ]
+            metadata: null
+            depth:
+              _target_: torchvision.transforms.Compose
+              transforms:
+                - _target_: torchvision.transforms.ToTensor
+                - _target_: iid.data.NanToNumTransform
+                - _target_: torchvision.transforms.Resize
+                  size: [ 240, 320 ]
+                - _target_: iid.data.NormalizeRange
+                  output_range: [ -1.0, 1.0 ]
+
+    trainer:
+      _target_: pytorch_lightning.Trainer
+      default_root_dir: ${paths.output_dir}
+      accelerator: gpu
+      devices: 1
+      deterministic: false  # XFormers requires it to be false
+      min_epochs: 1001
+      max_epochs: 10001
+      check_val_every_n_epoch: 999999
+      log_every_n_steps: 1
+      fast_dev_run: False
+      num_sanity_val_steps: 2
+      limit_train_batches: 1
+
+    callbacks:
+      model_checkpoint:
+        _target_: pytorch_lightning.callbacks.ModelCheckpoint
+        filename: null
+        monitor: "loss/train_loss"
+        verbose: False
+        save_top_k: 1
+        save_weights_only: True
+        every_n_train_steps: null
+        train_time_interval: null
+        every_n_epochs: 100
+        dirpath: ${paths.output_dir}/checkpoints
+        mode: "min"
+        save_last: True
+        save_on_train_epoch_end: True
+        auto_insert_metric_name: False
+      model_summary:
+        _target_: pytorch_lightning.callbacks.RichModelSummary
+        max_depth: -1
+      learning_rate_monitor:
+        _target_: iid.lighting_optimization.callbacks.LearningRateChangeMonitor
+        logging_interval: epoch
+        log_momentum: false
+      early_stopping:
+        _target_: pytorch_lightning.callbacks.early_stopping.EarlyStopping
+        monitor: loss/train_psnr
+        patience: 500
+        verbose: False
+        mode: max
+        min_delta: 1e-2
+        check_on_train_epoch_end: True
+      pruning:
+        _target_: iid.lighting_optimization.callbacks.IterativeLightingPruning
+        context: stage3_lighting
+        module_name: "lighting_model.lightings.point_lights"
+        param_name: "weight"
+        rel_threshold: 0.05
+        log_schedule:
+          _convert_: object
+          on_train_epoch_start: 0
+          on_train_batch_end:
+            lr_scheduler_configs.0.scheduler.cooldown_counter: 300  # = When the LR is changed
+      prediction_logger:
+        _target_: iid.lighting_optimization.callbacks.PredictionLogger
+        _convert_: object
+        context: stage3_lighting
+        keys_to_log:
+          - output.pred
+          - output.shading
+          - input.im
+          - input.albedo
+        keys_to_tonemap:
+          - output.pred
+          - input.im
+        log_schedule:
+          on_train_batch_end: ::100
+      file_copy:
+        _target_: iid.lighting_optimization.callbacks.FileCopy
+        src: ${stages.stage3_light.callbacks.model_checkpoint.dirpath}/last.ckpt
+        dst: ${paths.data_dir}test/lighting/${stages.stage3_light.data.sampling_cfg.sampler.indices.0}.ckpt
+        log_schedule:
+          on_fit_end: True
+
+# ======================== ENVIRONMENT ============================
+
+task_name: intrinsic_image_diffusion
+
+seed: 0
+
+device: auto

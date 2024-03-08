@@ -3,7 +3,7 @@ ddim_config:
   eta: 0
 
 unet_config:
-  target: iid.ldm.diffusionmodule.IIDUNetModel
+  target: iid.material_diffusion.ldm.diffusionmodule.IIDUNetModel
   params:
     image_size: 32  # legacy
     in_channels: 11
@@ -69,7 +69,7 @@ diffusion_config:
   cond_stage_trainable: false
   conditioning_key: hybrid
   cond_stage_config:
-    target: iid.ldm.encoders.FrozenOpenCLIPImageEmbedder
+    target: iid.material_diffusion.ldm.encoders.FrozenOpenCLIPImageEmbedder
     params:
       freeze: true
       layer: pooled

@@ -1,0 +1,67 @@
+# @package _global_
+
+# to execute this experiment run:
+# python -m iid.lighting_optimization.train
+
+defaults:
+  - override /hydra/hydra_logging: colorlog
+
+
+# ======================== ENVIRONMENT ============================
+
+task_name: null
+
+seed: 0
+
+device: auto
+
+paths:
+  # path to root directory
+  root_dir: ${hydra:runtime.cwd}/
+
+  # path to data directory
+  data_dir: ${paths.root_dir}data/
+
+  # path to logging directory
+  log_dir: ${paths.root_dir}logs/
+
+  # path to output directory, created dynamically by hydra
+  # path generation pattern is specified in `configs/hydra/default.yaml`
+  # use it to store all files generated during the run, like ckpts and metrics
+  output_dir: ${hydra:runtime.output_dir}
+
+  # path to working directory
+  work_dir: ${hydra:runtime.cwd}/
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/${task_name}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  job_logging:
+    version: 1
+    formatters:
+      simple:
+        format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+      colorlog:
+        '()': 'colorlog.ColoredFormatter'
+        format: '[%(cyan)s%(asctime)s%(reset)s][%(blue)s%(name)s%(reset)s][%(log_color)s%(levelname)s%(reset)s] - %(message)s'
+        log_colors:
+          DEBUG: purple
+          INFO: green
+          WARNING: yellow
+          ERROR: red
+          CRITICAL: red
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: colorlog
+        stream: ext://sys.stdout
+      file:
+        class: logging.FileHandler
+        formatter: simple
+        # relative to the job log directory
+        filename: ${hydra:runtime.output_dir}/log.log
+    root:
+      level: INFO
+      handlers: [ console, file ]
+    disable_existing_loggers: false
+
