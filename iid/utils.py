@@ -5,7 +5,6 @@ import os
 from collections import OrderedDict
 from enum import Enum
 from functools import partial
-from logging import Logger
 from typing import List
 
 import numpy as np
@@ -16,6 +15,8 @@ from batch import Batch
 from omegaconf import ListConfig
 from pytorch_lightning.utilities import rank_zero_only
 from torchvision.transforms import ToPILImage
+
+from pytorch_lightning.loggers import Logger
 
 LOCAL_RANK = int(os.environ.get('LOCAL_RANK', -1))
 
@@ -177,6 +178,8 @@ def init_logger(name: str = None, logging_level=logging.DEBUG, add_stream_handle
 
 
 class ConsoleLogger(Logger):
+    MEDIA_PATH = "wandb/latest-run/files/media/images"
+
     def __init__(self,
                  name,
                  id,
@@ -184,7 +187,7 @@ class ConsoleLogger(Logger):
                  project,
                  entity,
                  plot_images=True,
-                 save_images=False,
+                 save_images=True,
                  log_folder=None,
                  save_HDR=False,
                  **kwargs):
@@ -213,6 +216,10 @@ class ConsoleLogger(Logger):
             f"{len(checkpoints)} checkpoints found ({checkpoints}), using the latest one: {latest_checkpoint}!")
         return os.path.join(ckpt_dir, latest_checkpoint)
 
+    @property
+    def experiment(self):
+        return self
+
     def log(self, data_dict):
         for key, data in data_dict.items():
             if isinstance(data, wandb.Image):
@@ -234,7 +241,7 @@ class ConsoleLogger(Logger):
             if self.log_folder is not None:
                 img_path = os.path.join(self.log_folder, f"{name}_.png")
             else:
-                img_path = os.path.join(self.save_dir, "media", "images", f"{name}_.png")
+                img_path = os.path.join(self.save_dir, self.MEDIA_PATH, f"{name}_.png")
             os.makedirs(os.path.dirname(img_path), exist_ok=True)
             self.module_logger.info(f"Saving image to {img_path}")
             image.save(img_path)
@@ -244,7 +251,7 @@ class ConsoleLogger(Logger):
             if self.log_folder is not None:
                 img_path = os.path.join(self.log_folder, f"{name}_.exr")
             else:
-                img_path = os.path.join(self.save_dir, "media", "images", f"{name}_.exr")
+                img_path = os.path.join(self.save_dir, self.MEDIA_PATH, f"{name}_.exr")
             os.makedirs(os.path.dirname(img_path), exist_ok=True)
             self.module_logger.info(f"Saving HDR image to {img_path}")
             writeEXR(image_tensor.cpu().permute(1, 2, 0).numpy(), img_path)

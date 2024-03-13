@@ -149,8 +149,12 @@ class FileCopy(ScheduledCallback):
     @torch.no_grad()
     def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None):
         # Copy the file
-        os.makedirs(os.path.dirname(self.dst), exist_ok=True)
-        shutil.copy(self.src, self.dst)
+        if os.path.isdir(self.src):
+            shutil.rmtree(self.dst)
+            shutil.copytree(self.src, self.dst)
+        else:
+            os.makedirs(os.path.dirname(self.dst), exist_ok=True)
+            shutil.copy(self.src, self.dst)
         self.module_logger.info(f"Copied {self.src} to {self.dst}")
 
 

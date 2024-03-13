@@ -99,11 +99,10 @@ To predict the geometry, you can use the following command. For more details, yo
 ```
 python -m iid.geometry_prediction logger=console
 ```
-<div  class="row">
-  <img src="res/test.png"/> 
-  <img src="res/test_depth.png"/>
-  <img src="res/test_normal.png"/>
-</div>
+Input            |            Depth             | Normals
+:-------------------------:|:----------------------------:|:-------------------------:
+![Input](res/test.png)  | ![Depth](res/test_depth.png) |  ![Normals](res/test_normal.png)
+
 
 ## Stage 2 - Material Diffusion
 Running the model requires at least 10GB of GPU memory. 
@@ -114,12 +113,11 @@ python -m iid.material_diffusion logger=console
 ```
 By default, the script predicts 10 material explanations and computes the average. 
 
-<div  class="row">
-  <img src="res/test.png"/> 
-  <img src="res/test_out.png"/>
-  <img src="res/test_out_roughness.png"/>
-  <img src="res/test_out_metal.png"/>
-</div>
+Input            |             Albedo             |                 Roughness        |                 Metallic              
+:-------------------------:|:---------------------------:|:----------------------------------------:|:----------------------------------------:
+![Input](res/test.png)  | ![Albedo](res/test_out.png) | ![Roughness](res/test_out_roughness.png) |  ![Metallic](res/test_out_metal.png)
+
+
 
 ## Stage 3 - Lighting Optimization
 The lighting optimization part uses [PyTorch Lightning](https://github.com/Lightning-AI/pytorch-lightning) with iterative pruning and early stopping. 
@@ -131,12 +129,17 @@ You can run it with the following command. For more details, you can check `conf
 ```
 python -m iid.lighting_optimization logger=console
 ```
-<div  class="row">
-  <img src="res/test.png"/> 
-  <img src="res/test_shading.png"/>
-  <img src="res/test_rerendering.png"/>
-</div>
+Input            |              Shading               | Rerendering
+:-------------------------:|:--------------------------------:|:-------------------------:
+![Input](res/test.png)  | ![Shading](res/test_shading.png) |  ![Rerendering](res/test_rerendering.png)
 
+
+# Rendering
+After running the full pipeline, you can render the results with the following command. 
+This script will load the dataset from the `data/test_out` folder and the optimized lighting model from `data/test_out/lighting/0.ckpt`, then rerender the scene using the full decomposition.
+```
+python -m iid.test logger=console
+```
 
 # Acknowledgements
 This project is built upon [Latent Diffusion Models](https://github.com/CompVis/latent-diffusion), we are grateful for the authors open-sourcing their project. 

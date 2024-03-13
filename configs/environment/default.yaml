@@ -28,7 +28,7 @@ paths:
   # path to output directory, created dynamically by hydra
   # path generation pattern is specified in `configs/hydra/default.yaml`
   # use it to store all files generated during the run, like ckpts and metrics
-  output_dir: ${hydra:runtime.output_dir}
+  output_dir: ${hydra:runtime.output_dir}/
 
   # path to working directory
   work_dir: ${hydra:runtime.cwd}/

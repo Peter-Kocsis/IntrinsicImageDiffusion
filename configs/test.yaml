@@ -1,0 +1,76 @@
+# @package _global_
+
+# to execute this experiment run:
+# python -m iid.test
+
+defaults:
+  - /logger: console
+  - /model: lighting
+  - /environment@_here_: default
+  - /data: iid_data
+
+# ======================== DATAMODULE ============================
+
+data:
+  dataset_cfg:
+    root: ${paths.data_dir}test_out/
+    features_to_include: [ "im", "albedo", "material", "normal", "depth" ]
+    transform:
+      _target_: iid.data.BatchTransform
+      transform:
+        _default:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: torchvision.transforms.ToTensor
+            - _target_: iid.data.NanToNumTransform
+            - _target_: torchvision.transforms.Resize
+              size: [ 240, 320 ]
+        metadata: null
+        depth:
+          _target_: torchvision.transforms.Compose
+          transforms:
+            - _target_: torchvision.transforms.ToTensor
+            - _target_: iid.data.NanToNumTransform
+            - _target_: torchvision.transforms.Resize
+              size: [ 240, 320 ]
+            - _target_: iid.data.NormalizeRange
+              output_range: [ -1.0, 1.0 ]
+
+# ======================== MODEL ============================
+
+ckpt_path: ${paths.data_dir}test_out/lighting/0.ckpt
+model:
+  lighting_model:
+    lightings:
+      point_lights:
+        vpos_init: False
+
+# ======================== CALLBACKS ============================
+
+callbacks:
+  prediction_logger:
+    _target_: iid.lighting_optimization.callbacks.PredictionLogger
+    _convert_: object
+    context: test
+    eval_resolution: [ 480, 640 ]
+    keys_to_log:
+      - output.pred
+      - output.shading
+      - input.im
+      - input.albedo
+    keys_to_tonemap:
+      - output.pred
+      - input.im
+  file_copy:
+    _target_: iid.lighting_optimization.callbacks.FileCopy
+    src: ${paths.output_dir}wandb/latest-run/files/media/images/
+    dst: ${paths.root_dir}output/rendering/
+
+# ======================== ENVIRONMENT ============================
+
+task_name: test
+
+seed: 0
+
+device: auto
+

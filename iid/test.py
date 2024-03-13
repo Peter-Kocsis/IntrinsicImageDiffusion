@@ -7,8 +7,8 @@ from pytorch_lightning import Trainer
 from iid.utils import init_logger
 
 
-def lighting_optimization(cfg: DictConfig):
-    module_logger = init_logger("LightingOptimization_MAIN")
+def test(cfg: DictConfig):
+    module_logger = init_logger("Test_MAIN")
 
     # ============= CONFIG =============
     OmegaConf.resolve(cfg)
@@ -35,6 +35,14 @@ def lighting_optimization(cfg: DictConfig):
     model_cfg = cfg.model
     module_logger.info(f"Instantiating model <{model_cfg._target_}>")
     model = hydra.utils.instantiate(model_cfg)
+
+    # Load the checkpoint
+    ckpt = torch.load(cfg.ckpt_path)
+    module_logger.info(f"Loading model <{cfg.ckpt_path}>")
+    model.load_state_dict(ckpt["state_dict"])
+    del ckpt
+
+    # Move to device
     model = model.to(device)
 
     # ============= CALLBACKS =============
@@ -59,17 +67,15 @@ def lighting_optimization(cfg: DictConfig):
         }
         logger.log_hyperparams(hparams)
 
-    # ============= TRAINER =============
-    module_logger.info(f"Instantiating trainer <{cfg.trainer._target_}>")
-    trainer: Trainer = hydra.utils.instantiate(cfg.trainer, callbacks=callbacks, logger=logger)
-
-    # ============= OPTIMIZATION =============
-    trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+    # ============= INFERENCE =============
+    for callback in callbacks:
+        module_logger.info(f"Running callback <{callback}>")
+        callback(datamodule=datamodule, logger=logger, pl_module=model)
 
 
-@hydra.main(version_base="1.3", config_path="../../configs", config_name="stage/lighting_optimization.yaml")
+@hydra.main(version_base="1.3", config_path="../configs", config_name="test.yaml")
 def main(cfg: DictConfig):
-    lighting_optimization(cfg)
+    test(cfg)
 
 
 if __name__ == "__main__":
