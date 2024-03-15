@@ -205,6 +205,15 @@
     <div class="container">
       <div class="row justify-content-center">
         <h1 class="display-32">Citation</h1>
+        <pre><code>
+          @inproceedings{kocsis2024iid,
+              author = {Peter Kocsis
+                        and Vincent Sitzmann
+                        and Matthias Nie{\ss}ner},
+              title = {Intrinsic Image Diffusion for Single-view Material Estimation},
+              booktitle = {CVPR},
+              year={2024}}
+        </code></pre>
         <div class="col-lg-6">
           @inproceedings{kocsis2024iid,<br>
               author = {Peter Kocsis<br>
@@ -232,30 +241,6 @@
   <script src="js/main.js"></script>
   <!-- Slideshow Javascript -->
   <script src="lib/slideshow/slideshow.js"></script>
-
-  <script>
-    function copy_text() {
-      var copyText = '@inproceedings{kocsis2024iid, \r\n\
-              author = {Peter Kocsis \r\n\
-                        and Vincent Sitzmann \r\n\
-                        and Matthias Niessner}, \r\n\
-              title = {Intrinsic Image Diffusion for Single-view Material Estimation}, \r\n\
-              booktitle = {CVPR}, \r\n\
-              year={2024} \r\n\
-          }'
-      navigator.clipboard.writeText(copyText);
-      document.execCommand("copy");
-
-      // Get the snackbar DIV
-      var x = document.getElementById("text_copied_message");
-
-      // Add the "show" class to DIV
-      x.className = "show";
-
-      // After 3 seconds, remove the show class from DIV
-      setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
-    }
-    </script>
 </body>
 
 </html>
