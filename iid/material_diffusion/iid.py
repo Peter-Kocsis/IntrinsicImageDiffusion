@@ -1,19 +1,23 @@
 """
 Based on https://github.com/CompVis/latent-diffusion/blob/a506df5756472e2ebaf9078affdde2c4f1502cd4/ldm/modules/diffusionmodules/util.py
 """
-from typing import Any
+import warnings
+from collections import OrderedDict
+from typing import Any, List, Mapping
 
 import torch
 from batch import Batch
+from ldm.util import exists
 from pytorch_lightning import LightningModule
 from einops import rearrange
 
 from omegaconf import ListConfig
 
 from ldm.models.diffusion.ddim import DDIMSampler
+from torch.nn.modules.module import _IncompatibleKeys
 
 from iid.material_diffusion.ldm.ddpm import LatentImages2ImageDiffusion
-from iid.utils import init_logger
+from iid.utils import init_logger, TrainStage
 
 
 # Monkey patching for MPS support
@@ -38,6 +42,7 @@ class IntrinsicImageDiffusion(LightningModule):
                  diffusion_config,
                  ddim_config=None,
                  ckpt=None,
+                 learning_rate=1e-5,
                  *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.module_logger = init_logger()
@@ -56,6 +61,8 @@ class IntrinsicImageDiffusion(LightningModule):
             self.init_from_ckpt(self.ckpt)
 
         self.shape = self.get_shape()
+
+        self.diffusion_module.learning_rate = learning_rate
 
     def init_from_ckpt(self, path):
         sd = torch.load(path, map_location="cpu")
@@ -133,8 +140,8 @@ class IntrinsicImageDiffusion(LightningModule):
 
         c, _ = self.diffusion_module.get_cond_input(conditioning)
 
-        if conditioning.shape[0] != batch_size:
-            conditioning = conditioning.repeat(batch_size, *([1] * (conditioning.ndim - 1)))
+        if conditioning.im.shape[0] != batch_size:
+            conditioning.im = conditioning.im.repeat(batch_size, *([1] * (conditioning.im.ndim - 1)))
             c = c.repeat(batch_size, *([1] * (c.ndim - 1))) if c is not None else c
         conditioning = self.diffusion_module.get_cat_conditioning(conditioning, shape=(
             self.diffusion_module.image_size, self.diffusion_module.image_size))
@@ -160,11 +167,12 @@ class IntrinsicImageDiffusion(LightningModule):
                                                    verbose=False,
                                                    **kwargs)
         else:
-            z, z_intermediates = self.diffusion_module.sample(cond=conditioning,
-                                                              batch_size=batch_size,
-                                                              return_intermediates=return_intermediates,
-                                                              shape=self.shape,
-                                                              x_T=x_T)
+            z = self.diffusion_module.sample(cond=conditioning,
+                                            batch_size=batch_size,
+                                            return_intermediates=return_intermediates,
+                                            x_T=x_T)
+            if return_intermediates:
+                z, z_intermediates = z
 
         # Decode the samples
         y = self.decode(z)
@@ -175,3 +183,138 @@ class IntrinsicImageDiffusion(LightningModule):
             x_intermediates = (self.decode(z_intermediates)['albedo'] + 1) / 2
             return material, x_intermediates
         return material
+
+    # ============================ TRAINING ============================
+    def configure_optimizers(self):
+        return self.diffusion_module.configure_optimizers()
+
+    def general_step(self, batch, batch_idx, mode: TrainStage):
+        """
+        General step used in all phases
+        :param batch: The current batch of data
+        :param batch_idx: The current batch index
+        :param mode: The current phase
+        :return: The loss
+        """
+        # Workaround:
+        batch = Batch(**batch)
+
+        # ======================== STEP ========================
+        # Compose StableDiffusion batch
+        batch = self.prepare_batch(batch)
+
+        loss, loss_dict = self.diffusion_module.shared_step(batch)
+        loss_info = Batch()
+        loss_info.loss = loss
+        loss_info.loss_simple = loss_dict['train/loss_simple']
+        loss_info.loss_elbo = 0
+
+        return loss_info.loss
+
+    def training_step(self, batch, batch_idx, *args):
+        """Abstract definition of the training step"""
+        return self.general_step(batch, batch_idx, TrainStage.Training)
+
+    def prepare_batch(self, batch):
+        batch = batch.map(rearrange, pattern='b c h w -> b h w c')
+        return batch
+
+    def get_input_from_batch(self, batch):
+        prepared_batch = self.prepare_batch(batch)
+        z, c = self.diffusion_module.get_input(prepared_batch, self.diffusion_module.first_stage_key)
+        return z, c
+
+    def get_conditioning_from_batch(self, batch):
+        prepared_batch = self.prepare_batch(batch)
+        assert exists(self.diffusion_module.concat_keys), "Concat keys must be provided"
+        assert len(self.diffusion_module.concat_keys) == 1, "Only one conditioning key is supported"
+        c_cat = batch[list(self.diffusion_module.concat_keys)[0]]
+        return c_cat
+
+    def load_state_dict(self, state_dict: Mapping[str, Any],
+                        strict: bool = True):
+        r"""Copies parameters and buffers from :attr:`state_dict` into
+        this module and its descendants. If :attr:`strict` is ``True``, then
+        the keys of :attr:`state_dict` must exactly match the keys returned
+        by this module's :meth:`~torch.nn.Module.state_dict` function.
+
+        Args:
+            state_dict (dict): a dict containing parameters and
+                persistent buffers.
+            strict (bool, optional): whether to strictly enforce that the keys
+                in :attr:`state_dict` match the keys returned by this module's
+                :meth:`~torch.nn.Module.state_dict` function. Default: ``True``
+
+        Returns:
+            ``NamedTuple`` with ``missing_keys`` and ``unexpected_keys`` fields:
+                * **missing_keys** is a list of str containing the missing keys
+                * **unexpected_keys** is a list of str containing the unexpected keys
+
+        Note:
+            If a parameter or buffer is registered as ``None`` and its corresponding key
+            exists in :attr:`state_dict`, :meth:`load_state_dict` will raise a
+            ``RuntimeError``.
+        """
+        if not isinstance(state_dict, Mapping):
+            raise TypeError("Expected state_dict to be dict-like, got {}.".format(type(state_dict)))
+
+        missing_keys: List[str] = []
+        unexpected_keys: List[str] = []
+        error_msgs: List[str] = []
+
+        # copy state_dict so _load_from_state_dict can modify it
+        metadata = getattr(state_dict, '_metadata', None)
+        state_dict = OrderedDict(state_dict)
+        if metadata is not None:
+            # mypy isn't aware that "_metadata" exists in state_dict
+            state_dict._metadata = metadata  # type: ignore[attr-defined]
+
+        def load(module, local_state_dict, prefix=''):
+            local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
+            # Try to load, but keep if no success!
+            try:
+                module._load_from_state_dict(
+                    local_state_dict, prefix, local_metadata, True, missing_keys, unexpected_keys, error_msgs)
+            except RuntimeError as e:
+                if strict:
+                    raise e
+                else:
+                    error_msgs.append(e)
+                    return
+            for name, child in module._modules.items():
+                if child is not None:
+                    child_prefix = prefix + name + '.'
+                    child_state_dict = {k: v for k, v in local_state_dict.items() if k.startswith(child_prefix)}
+                    load(child, child_state_dict, child_prefix)
+
+            # Note that the hook can modify missing_keys and unexpected_keys.
+            incompatible_keys = _IncompatibleKeys(missing_keys, unexpected_keys)
+            for hook in module._load_state_dict_post_hooks.values():
+                out = hook(module, incompatible_keys)
+                assert out is None, (
+                    "Hooks registered with ``register_load_state_dict_post_hook`` are not"
+                    "expected to return new values, if incompatible_keys need to be modified,"
+                    "it should be done inplace."
+                )
+
+        load(self, state_dict)
+        del load
+
+        if strict:
+            if len(unexpected_keys) > 0:
+                error_msgs.insert(
+                    0, 'Unexpected key(s) in state_dict: {}. '.format(
+                        ', '.join('"{}"'.format(k) for k in unexpected_keys)))
+            if len(missing_keys) > 0:
+                error_msgs.insert(
+                    0, 'Missing key(s) in state_dict: {}. '.format(
+                        ', '.join('"{}"'.format(k) for k in missing_keys)))
+
+        if len(error_msgs) > 0:
+            if strict:
+                raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
+                                   self.__class__.__name__, "\n\t".join(error_msgs)))
+            else:
+                warnings.warn('Error(s) in loading state_dict for {}:\n\t{}'.format(
+                              self.__class__.__name__, "\n\t".join(error_msgs)))
+        return _IncompatibleKeys(missing_keys, unexpected_keys)

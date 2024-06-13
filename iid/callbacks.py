@@ -3,7 +3,7 @@ import os
 import shutil
 from abc import ABC
 from collections import defaultdict
-from typing import Any, Optional, Dict, Tuple
+from typing import Any, Optional, Dict, Tuple, MutableMapping, Iterable
 
 import numpy as np
 import pytorch_lightning
@@ -15,13 +15,15 @@ from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import nn
 from torch.nn import Identity
-from torchvision.transforms import ToPILImage, Resize
+from torch.utils.data import DataLoader
+from torchvision.transforms import ToPILImage, Resize, Compose
 from torchvision.transforms.functional import resize
 
-from iid.data import Linear_2_SRGB
+from iid.data import Linear_2_SRGB, BatchTransform
 from iid.lighting_optimization.pruning import ThresholdPruning
 from iid.lighting_optimization.render import IIR_SSRT_RenderLayer
-from iid.utils import rgetattr, LOCAL_RANK, init_logger, log_anything
+from iid.material_diffusion.data import SubsetSequentialSampler
+from iid.utils import rgetattr, LOCAL_RANK, init_logger, log_anything, TrainStage
 
 
 class ScheduledCallback(ABC, pytorch_lightning.Callback):
@@ -39,7 +41,7 @@ class ScheduledCallback(ABC, pytorch_lightning.Callback):
     """
     def __init__(self,
                  log_schedule=None,
-                 rank_zero_only=False):
+                 rank_zero_only=True):
         self.log_schedule = defaultdict(lambda: None)
         self.rank_zero_only = rank_zero_only
         if log_schedule is not None:
@@ -105,7 +107,7 @@ class ScheduledCallback(ABC, pytorch_lightning.Callback):
         """Called when the train epoch begins."""
         if not self.rank_zero_only or LOCAL_RANK == -1:
             if self.should_log("on_train_epoch_start", trainer):
-                self(datamodule=trainer.datamodule, logger=trainer.logger, pl_module=pl_module)
+                self(datamodule=trainer.datamodule, trainer=trainer, logger=trainer.logger, pl_module=pl_module)
 
     def on_train_batch_start(
             self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", batch: Any, batch_idx: int
@@ -113,7 +115,7 @@ class ScheduledCallback(ABC, pytorch_lightning.Callback):
         """Called when the train batch begins."""
         if not self.rank_zero_only or LOCAL_RANK == -1:
             if self.should_log("on_train_batch_start", trainer):
-                self(datamodule=trainer.datamodule, logger=trainer.logger, pl_module=pl_module, batch=batch)
+                self(datamodule=trainer.datamodule, trainer=trainer, logger=trainer.logger, pl_module=pl_module, batch=batch)
 
     def on_train_batch_end(
             self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs: STEP_OUTPUT, batch: Any,
@@ -122,7 +124,7 @@ class ScheduledCallback(ABC, pytorch_lightning.Callback):
         """Called when the train epoch begins."""
         if not self.rank_zero_only or LOCAL_RANK == -1:
             if self.should_log("on_train_batch_end", trainer):
-                self(datamodule=trainer.datamodule, logger=trainer.logger, pl_module=pl_module, outputs=outputs,
+                self(datamodule=trainer.datamodule, trainer=trainer, logger=trainer.logger, pl_module=pl_module, outputs=outputs,
                      batch=batch)
 
     def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
@@ -131,8 +133,11 @@ class ScheduledCallback(ABC, pytorch_lightning.Callback):
             if self.should_log("on_fit_end", trainer):
                 self(datamodule=trainer.datamodule, logger=trainer.logger, pl_module=pl_module)
 
-    def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None):
+    def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None, trainer=None):
         pass
+
+
+# ============================================ INFERENCE CALLBACKS ============================================
 
 
 class FileCopy(ScheduledCallback):
@@ -397,3 +402,164 @@ class IterativeLightingPruning(ScheduledCallback):
     @staticmethod
     def get_pruned_stats(module: nn.Module) -> Tuple[int, int]:
         return module.is_enabled
+
+
+# ============================================ TRAINING CALLBACKS ============================================
+
+class DiffusionSampler(ScheduledCallback):
+    def __init__(self,
+                 sanple_id,
+                 n_samples=1,
+                 keys_to_log="*",
+                 stage=TrainStage.Training.value,
+                 context="diffusion_sampler",
+                 transform=None,
+                 sampler=None,
+                 log_schedule=None,
+                 sample_kwargs=dict()):
+        super().__init__(log_schedule=log_schedule)
+        self.module_logger = init_logger()
+
+        self.sanple_id = sanple_id
+        self.n_samples = n_samples
+        self.keys_to_log = keys_to_log
+        self.stage = stage
+        self.transform = transform
+
+        self.sampler = sampler
+
+        self.context = context
+
+        self.sample_kwargs = sample_kwargs
+
+        self.dataset = None
+
+    def get_samples(self, datamodule, pl_module):
+        # Collect all related information
+        samples = Batch()
+        samples.module_device = pl_module.device
+        samples.scene_id = self.sanple_id
+
+        if self.dataset is None:
+            self.dataset = datamodule.load_dataset(self.stage)
+            self.fix_sampling_to_center(self.dataset.transform)
+        samples.dataset = self.dataset
+
+        # Collect datapoints
+        sampler = SubsetSequentialSampler(indices=[self.sanple_id])
+        samples.dataloader = DataLoader(samples.dataset, batch_size=1, sampler=sampler, pin_memory=True)
+
+        return samples
+
+    def fix_sampling_to_center(self, transform):
+        if isinstance(transform, MutableMapping):
+            self.fix_sampling_to_center(list(transform.values()))
+        elif isinstance(transform, Iterable):
+            for t in transform:
+                self.fix_sampling_to_center(t)
+        elif isinstance(transform, BatchTransform):
+            for t in transform.transform.values():
+                self.fix_sampling_to_center(t)
+        elif isinstance(transform, Compose):
+            self.fix_sampling_to_center(transform.transforms)
+        elif hasattr(transform, "center_only"):
+            transform.center_only = True
+
+    @torch.no_grad()
+    def __call__(self, trainer, pl_module, *args, **kwargs):
+        # Init
+        self.num_max_timesteps = pl_module.diffusion_module.num_timesteps
+
+        # Collect all related information
+        samples = self.get_samples(trainer.datamodule, pl_module)
+
+        # Iterate over the samples
+        x_0s = []
+        for batch in samples.dataloader:
+            # Prepare the batch
+            batch = trainer.precision_plugin.convert_input(batch)
+            batch = trainer.lightning_module._on_before_batch_transfer(batch)
+            batch = trainer.strategy.batch_to_device(batch)
+            batch = Batch.from_dict(batch)
+
+            with trainer.strategy.precision_plugin.train_step_context():
+                # Run the reverse process
+                x_0_pred = self.sample(batch, pl_module)
+                x_0s.append(x_0_pred.flatten(separator="/").query_wildcard(self.keys_to_log))
+        x_0s = Batch.from_batch_list(*x_0s)
+        x_0s = x_0s.map(torch.cat, dim=0)
+
+        # Apply the transform
+        if self.transform is not None:
+            x_0s = self.transform(x_0s)
+
+        # Log the reverse samples
+        log_anything(logger=trainer.logger, name=self.context, data=x_0s.map(list))
+
+    def sample(self, batch, pl_module):
+        # # Run the reverse process
+        conditioning_img = pl_module.get_conditioning_from_batch(batch)
+        conditioning_img = (conditioning_img + 1) / 2  # The sampling function expects range [0, 1]
+        output = pl_module.sample(conditioning_img=conditioning_img,
+                                  batch_size=self.n_samples)
+
+        output = Batch(
+            albedo=output[:, :3],
+            material=output[:, 3:]
+        )
+        return output
+
+
+class BatchLogger(ScheduledCallback):
+    def __init__(self,
+                 batch_keys_to_log=None,
+                 output_keys_to_log=None,
+                 context=None,
+                 is_metric=False,
+                 transform=None,
+                 log_schedule=None):
+        super().__init__(log_schedule=log_schedule)
+        self.module_logger = init_logger()
+
+        self.batch_keys_to_log = batch_keys_to_log
+        self.output_keys_to_log = output_keys_to_log
+
+        self.context = context
+        self.is_metric = is_metric
+
+        self.transform = transform
+
+    def get_samples(self, outputs, batch):
+        # Collect batch information
+        batch_samples = self._collect_samples(Batch(**batch), self.batch_keys_to_log)
+
+        # Collect output information
+        output_samples = self._collect_samples(Batch(**outputs), self.output_keys_to_log)
+
+        return batch_samples.update(output_samples)
+
+    def _collect_samples(self, batch, keys):
+        samples = Batch()
+        for key_to_log in keys:
+            samples_to_log = batch.query_wildcard(key_to_log)
+            samples_to_log = samples_to_log.map_keys(lambda x: x.replace('.', '/'))
+            samples_to_log = samples_to_log.map(lambda x: torch.atleast_1d(x.clone().detach()))
+            samples.update(samples_to_log)
+        return samples
+
+    @torch.no_grad()
+    def __call__(self, trainer, pl_module, outputs, batch, *args, **kwargs):
+        # Collect all related information
+        samples = self.get_samples(outputs, batch)
+
+        if self.transform is not None:
+            samples = self.transform(samples)
+
+        # Log the required data
+        logged_data = log_anything(logger=trainer.logger, name=self.context, data=samples.map(list), is_metric=self.is_metric, step=trainer.fit_loop.epoch_loop._batches_that_stepped)
+
+        # Log the metric
+        if self.is_metric:
+            trainer.callback_metrics.update(
+                {name: value.clone().detach().to(trainer.strategy.root_device) for name, value in logged_data.items()}
+            )

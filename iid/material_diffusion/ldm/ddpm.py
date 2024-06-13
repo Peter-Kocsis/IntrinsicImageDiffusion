@@ -1,4 +1,6 @@
+import warnings
 from collections import OrderedDict
+from typing import List, Mapping, Any
 
 import torch
 import torch.nn as nn
@@ -7,7 +9,9 @@ from ldm.models.autoencoder import AutoencoderKL
 from ldm.models.diffusion.ddpm import LatentDiffusion, LatentFinetuneDiffusion, __conditioning_keys__
 from ldm.util import exists, instantiate_from_config
 from omegaconf import ListConfig
+from torch.nn.modules.module import _IncompatibleKeys
 from torch.optim.lr_scheduler import LambdaLR
+from werkzeug.routing import Map
 
 
 class LatentImages2ImageDiffusion(LatentFinetuneDiffusion):
@@ -19,7 +23,146 @@ class LatentImages2ImageDiffusion(LatentFinetuneDiffusion):
         super().__init__(concat_keys=concat_keys, *args, **kwargs)
         self.concat_encoding_stage_config = concat_encoding_stage_config
         self.concat_encoder = self.get_concat_encoder(concat_encoding_stage_config)
+        # Register logvar as buffer
+        self.logvar = nn.Parameter(self.logvar, requires_grad=False)
         # self.depth_stage_key = concat_keys[0]
+
+    def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
+        sd = torch.load(path, map_location="cpu")
+        if "state_dict" in list(sd.keys()):
+            sd = sd["state_dict"]
+        keys = list(sd.keys())
+        for k in keys:
+            for ik in ignore_keys:
+                if k.startswith(ik):
+                    print("Deleting key {} from state_dict.".format(k))
+                    del sd[k]
+
+            # make it explicit, finetune by including extra input channels
+            if exists(self.finetune_keys) and k in self.finetune_keys:
+                new_entry = None
+                for name, param in self.named_parameters():
+                    if name in self.finetune_keys:
+                        print(
+                            f"modifying key '{name}' and keeping its original {self.keep_dims} (channels) dimensions only")
+                        new_entry = torch.zeros_like(param)  # zero init
+                assert exists(new_entry), 'did not find matching parameter to modify'
+                new_entry[:, :self.keep_dims, ...] = sd[k]
+                sd[k] = new_entry
+
+        if only_model:
+            missing, unexpected = self.model.load_state_dict(
+                {k[len("model."):]: v for k, v in sd.items() if k.startswith("model")}, strict=False)
+            print(f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
+            if len(missing) > 0:
+                print(f"Missing Keys: {missing}")
+            if len(unexpected) > 0:
+                print(f"Unexpected Keys: {unexpected}")
+
+            missing, unexpected = self.first_stage_model.load_state_dict(
+                {k[len("first_stage_model."):]: v for k, v in sd.items() if k.startswith("first_stage_model")},
+                strict=False)
+            print(f"Restored FS from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
+            if len(missing) > 0:
+                print(f"Missing FS Keys: {missing}")
+            if len(unexpected) > 0:
+                print(f"Unexpected FS Keys: {unexpected}")
+
+        else:
+            missing, unexpected = self.load_state_dict(sd, strict=False)
+            print(f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
+            if len(missing) > 0:
+                print(f"Missing Keys: {missing}")
+            if len(unexpected) > 0:
+                print(f"Unexpected Keys: {unexpected}")
+
+    def load_state_dict(self, state_dict: Mapping[str, Any],
+                        strict: bool = True):
+        r"""Copies parameters and buffers from :attr:`state_dict` into
+        this module and its descendants. If :attr:`strict` is ``True``, then
+        the keys of :attr:`state_dict` must exactly match the keys returned
+        by this module's :meth:`~torch.nn.Module.state_dict` function.
+
+        Args:
+            state_dict (dict): a dict containing parameters and
+                persistent buffers.
+            strict (bool, optional): whether to strictly enforce that the keys
+                in :attr:`state_dict` match the keys returned by this module's
+                :meth:`~torch.nn.Module.state_dict` function. Default: ``True``
+
+        Returns:
+            ``NamedTuple`` with ``missing_keys`` and ``unexpected_keys`` fields:
+                * **missing_keys** is a list of str containing the missing keys
+                * **unexpected_keys** is a list of str containing the unexpected keys
+
+        Note:
+            If a parameter or buffer is registered as ``None`` and its corresponding key
+            exists in :attr:`state_dict`, :meth:`load_state_dict` will raise a
+            ``RuntimeError``.
+        """
+        if not isinstance(state_dict, Mapping):
+            raise TypeError("Expected state_dict to be dict-like, got {}.".format(type(state_dict)))
+
+        missing_keys: List[str] = []
+        unexpected_keys: List[str] = []
+        error_msgs: List[str] = []
+
+        # copy state_dict so _load_from_state_dict can modify it
+        metadata = getattr(state_dict, '_metadata', None)
+        state_dict = OrderedDict(state_dict)
+        if metadata is not None:
+            # mypy isn't aware that "_metadata" exists in state_dict
+            state_dict._metadata = metadata  # type: ignore[attr-defined]
+
+        def load(module, local_state_dict, prefix=''):
+            local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
+            # Try to load, but keep if no success!
+            try:
+                module._load_from_state_dict(
+                    local_state_dict, prefix, local_metadata, True, missing_keys, unexpected_keys, error_msgs)
+            except RuntimeError as e:
+                if strict:
+                    raise e
+                else:
+                    error_msgs.append(e)
+                    return
+            for name, child in module._modules.items():
+                if child is not None:
+                    child_prefix = prefix + name + '.'
+                    child_state_dict = {k: v for k, v in local_state_dict.items() if k.startswith(child_prefix)}
+                    load(child, child_state_dict, child_prefix)
+
+            # Note that the hook can modify missing_keys and unexpected_keys.
+            incompatible_keys = _IncompatibleKeys(missing_keys, unexpected_keys)
+            for hook in module._load_state_dict_post_hooks.values():
+                out = hook(module, incompatible_keys)
+                assert out is None, (
+                    "Hooks registered with ``register_load_state_dict_post_hook`` are not"
+                    "expected to return new values, if incompatible_keys need to be modified,"
+                    "it should be done inplace."
+                )
+
+        load(self, state_dict)
+        del load
+
+        if strict:
+            if len(unexpected_keys) > 0:
+                error_msgs.insert(
+                    0, 'Unexpected key(s) in state_dict: {}. '.format(
+                        ', '.join('"{}"'.format(k) for k in unexpected_keys)))
+            if len(missing_keys) > 0:
+                error_msgs.insert(
+                    0, 'Missing key(s) in state_dict: {}. '.format(
+                        ', '.join('"{}"'.format(k) for k in missing_keys)))
+
+        if len(error_msgs) > 0:
+            if strict:
+                raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
+                    self.__class__.__name__, "\n\t".join(error_msgs)))
+            else:
+                warnings.warn('Error(s) in loading state_dict for {}:\n\t{}'.format(
+                    self.__class__.__name__, "\n\t".join(error_msgs)))
+        return _IncompatibleKeys(missing_keys, unexpected_keys)
 
     def get_concat_encoder(self, config):
         if not hasattr(config, "target") and config != "__is_first_stage__":

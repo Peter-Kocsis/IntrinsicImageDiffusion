@@ -71,7 +71,7 @@ def readEXR(filename):
     # convert all channels in the image to numpy arrays
     for c in header['channels']:
         C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
-        C = np.fromstring(C, dtype=np.float32)
+        C = np.frombuffer(C, dtype=np.float32)
         C = np.reshape(C, isize)
 
         channelData[c] = C
@@ -281,7 +281,7 @@ class ConsoleLogger(Logger):
     def log_metrics(self, metrics, step):
         # metrics is a dictionary of metric names and values
         # your code to record metrics goes here
-        pass
+        self.module_logger.info(f"Logged metric: {metrics} at step {step}")
 
     @rank_zero_only
     def save(self):

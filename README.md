@@ -1,6 +1,6 @@
 <p align="center">
 
-  <h1 align="center">Intrinsic Image Diffusion for Single-view Material Estimation</h1>
+  <h1 align="center">Intrinsic Image Diffusion for Indoor Single-view Material Estimation</h1>
   <p align="center">
     <a href="https://peter-kocsis.github.io/">Peter Kocsis</a>
     ·
@@ -80,8 +80,39 @@ The code supports logging to console and [WandB](https://wandb.ai/site).
 The default config is to log to WandB, but the presented commands override this to console, so you can run them without an account. 
 If you wish to change to WandB, drop the `logger=console` argument from the commands and edit `configs/logger/wandb.yaml` with your information.
 
+
+
 # Training
-Coming soon!
+To train our model, first, the dataset and the pre-trained model needs to be prepared. 
+
+## Dataset
+Our model has been trained on the 85 FOV images of the [InteriorVerse](https://interiorverse.github.io/#download) synthetic indoor dataset. Please refer to the official instructions to download the dataset. The dataset should have the following structure:
+```
+...
+├── data                   <- Datasets
+│   ├── InteriorVerse        <- InteriorVerse dataset
+│   │   └── dataset_85         <- 85FOV dataset
+│   │        ├── train.txt        <- List of training scenes
+│   │        ├── val.txt          <- List of validation scenes
+│   │        ├── test.txt         <- List of test scenes
+│   │        ├── L3D197S21ENDIMKITJAUI5NYALUF3P3XC888      
+│   │        └── ...
+...
+```
+
+## Pre-trained Stable Diffusion Model
+To train our model, we fine-tune a pre-trained Stable Diffusion model. Use the following command to get the pre-trained model. 
+```
+mkdir -p models/stable_diffusion
+wget "https://huggingface.co/stabilityai/stable-diffusion-2-depth/resolve/main/512-depth-ema.ckpt" -O "models/stable_diffusion/512-depth-ema.ckpt"
+```
+
+## Train
+Our model was trained for 250 epochs with a total batch size of 40 on 4 A100 GPUs, which took around 7 days. For a different setup, you can modify the training config. Run the following command to train the model.
+``` 
+python -m iid.train
+```
+
 
 # Inference
 The full pipeline consists of three stages: geometry prediction, material diffusion and lighting optimization.
@@ -151,9 +182,9 @@ Our full pipeline uses [OmniData](https://github.com/EPFL-VILAB/omnidata) for ge
 # Citation
 If you find our code or paper useful, please cite
 ```bibtex
-@article{Kocsis2024IID,
+@article{kocsis2024iid,
   author    = {Kocsis, Peter and Sitzmann, Vincent and Nie\{ss}ner, Matthias},
-  title     = {Intrinsic Image Diffusion for Single-view Material Estimation},
+  title     = {Intrinsic Image Diffusion for Indoor Single-view Material Estimation},
   journal   = {Conference on Computer Vision and Pattern Recognition (CVPR)},
   year      = {2024},
 }

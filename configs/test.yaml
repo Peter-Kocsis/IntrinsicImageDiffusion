@@ -49,7 +49,7 @@ model:
 
 callbacks:
   prediction_logger:
-    _target_: iid.lighting_optimization.callbacks.PredictionLogger
+    _target_: iid.callbacks.PredictionLogger
     _convert_: object
     context: test
     eval_resolution: [ 480, 640 ]
@@ -62,7 +62,7 @@ callbacks:
       - output.pred
       - input.im
   file_copy:
-    _target_: iid.lighting_optimization.callbacks.FileCopy
+    _target_: iid.callbacks.FileCopy
     src: ${paths.output_dir}wandb/latest-run/files/media/images/
     dst: ${paths.root_dir}output/rendering/
 

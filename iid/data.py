@@ -2,7 +2,8 @@ import copy
 import glob
 import os
 import warnings
-from typing import Optional, Any, Callable, Union, Mapping
+from collections import defaultdict
+from typing import Optional, Any, Callable, Union, Mapping, MutableMapping, Iterable
 
 import hydra
 import numpy as np
@@ -13,6 +14,8 @@ from pytorch_lightning.utilities.types import TRAIN_DATALOADERS, EVAL_DATALOADER
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.datasets import VisionDataset
+from torchvision.transforms import RandomCrop, Compose
+import torchvision.transforms.functional as F
 
 from iid.utils import init_logger, range2list, LoadableObjectCache, readPNG, readEXR, TrainStage
 
@@ -278,10 +281,27 @@ class IIDDataset(VisionDataset):
 
         # Transform the features
         if self.transform is not None:
+            # Reset the parameters of the transform
+            self.reset_transform_params(self.transform)
+
             # Apply different transformation to the different features
             sample = self.transform(sample)
 
         return sample
+
+    def reset_transform_params(self, transform):
+        if isinstance(transform, MutableMapping):
+            self.reset_transform_params(list(transform.values()))
+        elif isinstance(transform, Iterable):
+            for t in transform:
+                self.reset_transform_params(t)
+        elif isinstance(transform, BatchTransform):
+            for t in transform.transform.values():
+                self.reset_transform_params(t)
+        elif isinstance(transform, Compose):
+            self.reset_transform_params(transform.transforms)
+        elif hasattr(transform, "reset_parameters"):
+            transform.reset_parameters()
 
     def __getitem__(self, index: int) -> Any:
         batch = self.samples[index]
@@ -311,6 +331,9 @@ class BatchTransform(nn.Module):
             return self.transform.get(index, self.transform.get("_default", None))
         else:
             return self.transform
+
+    def _iter_(self):
+        return iter(self.transform.values())
 
     def forward(self, x_dict: Mapping[str, torch.Tensor]) -> Mapping[str, torch.Tensor]:
         """
@@ -415,6 +438,113 @@ class NormalizeRange(torch.nn.Module):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(input_range={self.input_range}, output_range={self.output_range})"
+
+
+class NormalizeIntensity(torch.nn.Module):
+    def __init__(self, output_mean):
+        super().__init__()
+        self.output_mean = output_mean
+
+    def forward(self, x) -> torch.Tensor:
+        """
+        Transforms the range of tensor.
+        :param x: The input tensor
+        :return: The transformed tensor
+        """
+        return x / (x.mean() + 1e-6) * self.output_mean
+
+    def inverse(self, y):
+        """
+        Inverse transforms the range of tensor.
+        :param y: The transformed tensor
+        :return: The inverse transformed tensor
+        """
+        raise NotImplementedError(f"Intensity normalization is not invertible")
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(output_mean={self.output_mean})"
+
+
+class Clamp(torch.nn.Module):
+    def __init__(self, min=None, max=None):
+        super().__init__()
+        self.min = min
+        self.max = max
+
+    def forward(self, x) -> torch.Tensor:
+        """
+        Transforms the range of tensor.
+        :param x: The input tensor
+        :return: The transformed tensor
+        """
+        return torch.clamp(x, min=self.min, max=self.max)
+
+    def inverse(self, y):
+        """
+        Inverse transforms the range of tensor.
+        :param y: The transformed tensor
+        :return: The inverse transformed tensor
+        """
+        raise NotImplementedError(f"Clamping is not inversible")
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(min={self.min}, max={self.max})"
+
+
+class FixableRandomCrop(RandomCrop):
+    FIXED_PARAMS = defaultdict(lambda: None)
+
+    def __init__(self,
+                 size,
+                 padding=None,
+                 pad_if_needed=False,
+                 fill=0,
+                 padding_mode="constant",
+                 center_only=False,
+                 fixing_id: str = None):
+        super().__init__(size, padding, pad_if_needed, fill, padding_mode)
+
+        self.center_only = center_only
+        self.fixing_id = fixing_id
+        self.module_logger = init_logger()
+
+    def reset_parameters(self):
+        FixableRandomCrop.FIXED_PARAMS = defaultdict(lambda: None)
+
+    def forward(self, img):
+        """
+        Args:
+            img (PIL Image or Tensor): Image to be cropped.
+
+        Returns:
+            PIL Image or Tensor: Cropped image.
+        """
+        if self.center_only:
+            return F.center_crop(img, self.size)
+
+        if self.padding is not None:
+            img = F.pad(img, self.padding, self.fill, self.padding_mode)
+
+        _, height, width = F.get_dimensions(img)
+        # pad the width if needed
+        if self.pad_if_needed and width < self.size[1]:
+            padding = [self.size[1] - width, 0]
+            img = F.pad(img, padding, self.fill, self.padding_mode)
+        # pad the height if needed
+        if self.pad_if_needed and height < self.size[0]:
+            padding = [0, self.size[0] - height]
+            img = F.pad(img, padding, self.fill, self.padding_mode)
+
+        # Get the potentially fixed parameters
+        if self.fixing_id is None:
+            i, j, h, w = self.get_params(img, self.size)
+        else:
+            if FixableRandomCrop.FIXED_PARAMS[self.fixing_id] is None:
+                FixableRandomCrop.FIXED_PARAMS[self.fixing_id] = self.get_params(img, self.size)
+            i, j, h, w = FixableRandomCrop.FIXED_PARAMS[self.fixing_id]
+
+        return F.crop(img, i, j, h, w)
+
 
 
 # ================================ IO ================================

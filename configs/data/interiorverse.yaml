@@ -1,0 +1,62 @@
+_target_: iid.data.IIDDataModule
+_recursive_: False
+_convert_: object
+sampling_cfg:
+  batch_size: 1
+  num_workers: 0
+  sampler:
+    _target_: torch.utils.data.SubsetRandomSampler
+    _convert_: object
+    indices: null  # To be evaluated samples
+dataset_cfg:
+  _target_: iid.material_diffusion.data.InteriorVerseDataset
+  root: ${paths.data_dir}InteriorVerse/dataset_85/
+  features_to_include: [ "im", "albedo", "material" ]
+  cache_size: 1
+  stage: null
+  include_metadata: False
+  transform:
+    _target_: iid.data.BatchTransform
+    transform:
+      im:
+        _target_: torchvision.transforms.Compose
+        transforms:
+          - _target_: torchvision.transforms.ToTensor
+          - _target_: iid.data.NanToNumTransform
+          - _target_: iid.data.FixableRandomCrop
+            size: [ 256, 256 ]
+            center_only: False
+            fixing_id: sample
+          - _target_: iid.data.NormalizeIntensity
+            output_mean: 0.5
+          - _target_: iid.data.Clamp
+            min: 0.0
+            max: 1.0
+          - _target_: iid.data.NormalizeRange
+            input_range: [ 0.0, 1.0 ]
+            output_range: [ -1.0, 1.0 ]
+      albedo:
+        _target_: torchvision.transforms.Compose
+        transforms:
+          - _target_: torchvision.transforms.ToTensor
+          - _target_: iid.data.NanToNumTransform
+          - _target_: iid.data.FixableRandomCrop
+            size: [ 256, 256 ]
+            center_only: False
+            fixing_id: sample
+          - _target_: iid.data.NormalizeRange
+            input_range: [ 0.0, 1.0 ]
+            output_range: [ -1.0, 1.0 ]
+      material:
+        _target_: torchvision.transforms.Compose
+        transforms:
+          - _target_: torchvision.transforms.ToTensor
+          - _target_: iid.data.NanToNumTransform
+          - _target_: iid.data.FixableRandomCrop
+            size: [ 256, 256 ]
+            center_only: False
+            fixing_id: sample
+          - _target_: iid.data.NormalizeRange
+            input_range: [ 0.0, 1.0 ]
+            output_range: [ -1.0, 1.0 ]
+      metadata: null

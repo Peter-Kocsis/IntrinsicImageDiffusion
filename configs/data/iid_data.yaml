@@ -1,15 +1,13 @@
 _target_: iid.data.IIDDataModule
 _recursive_: False
+_convert_: object
 sampling_cfg:
-  _convert_: object
   batch_size: 1
   num_workers: 0
   sampler:
     _target_: torch.utils.data.SubsetRandomSampler
-    _convert_: object
     indices: [ 0 ]  # To be evaluated samples
 dataset_cfg:
-  _convert_: object
   _target_: iid.data.IIDDataset
   root: ${paths.data_dir}test/
   features_to_include: [ "im", "albedo", "material", "normal", "depth" ]

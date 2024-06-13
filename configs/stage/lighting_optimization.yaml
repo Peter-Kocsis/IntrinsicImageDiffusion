@@ -79,7 +79,7 @@ callbacks:
     _target_: pytorch_lightning.callbacks.RichModelSummary
     max_depth: -1
   learning_rate_monitor:
-    _target_: iid.lighting_optimization.callbacks.LearningRateChangeMonitor
+    _target_: iid.callbacks.LearningRateChangeMonitor
     logging_interval: epoch
     log_momentum: false
   early_stopping:
@@ -91,7 +91,7 @@ callbacks:
     min_delta: 1e-2
     check_on_train_epoch_end: True
   pruning:
-    _target_: iid.lighting_optimization.callbacks.IterativeLightingPruning
+    _target_: iid.callbacks.IterativeLightingPruning
     context: stage3_lighting
     module_name: "lighting_model.lightings.point_lights"
     param_name: "weight"
@@ -102,7 +102,7 @@ callbacks:
       on_train_batch_end:
         lr_scheduler_configs.0.scheduler.cooldown_counter: 300  # = When the LR is changed
   prediction_logger:
-    _target_: iid.lighting_optimization.callbacks.PredictionLogger
+    _target_: iid.callbacks.PredictionLogger
     _convert_: object
     context: stage3_lighting
     eval_resolution: [ 480, 640 ]
@@ -117,7 +117,7 @@ callbacks:
     log_schedule:
       on_train_batch_end: ::100
   file_copy:
-    _target_: iid.lighting_optimization.callbacks.FileCopy
+    _target_: iid.callbacks.FileCopy
     src: ${callbacks.model_checkpoint.dirpath}/last.ckpt
     dst: ${paths.data_dir}test/lighting/${data.sampling_cfg.sampler.indices.0}.ckpt
     log_schedule:
