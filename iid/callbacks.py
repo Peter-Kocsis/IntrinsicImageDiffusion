@@ -152,7 +152,7 @@ class FileCopy(ScheduledCallback):
         self.module_logger = init_logger()
 
     @torch.no_grad()
-    def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None):
+    def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None, *args, **kwargs):
         # Copy the file
         if os.path.isdir(self.src):
             shutil.rmtree(self.dst)
@@ -193,7 +193,7 @@ class PredictionLogger(ScheduledCallback):
         self.to_pil = ToPILImage()
 
     @torch.no_grad()
-    def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None, name_prefix=""):
+    def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None, name_prefix="", *args, **kwargs):
         # Prepare the batch
         if batch is None:
             batch = next(iter(datamodule.train_dataloader()))
@@ -347,7 +347,7 @@ class IterativeLightingPruning(ScheduledCallback):
         self.module_logger = init_logger()
 
     @torch.no_grad()
-    def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None):
+    def __call__(self, datamodule, logger, pl_module, outputs=None, batch=None, *args, **kwargs):
         # Collect the parameters to prune
         parameters_to_prune, parameters = self.collect_parameters(pl_module, self.module_name, self.param_name)
 
