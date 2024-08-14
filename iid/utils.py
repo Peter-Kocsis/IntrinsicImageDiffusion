@@ -306,7 +306,7 @@ def range2list(config, max_length=None):
     elif isinstance(config, list):
         return config
     elif isinstance(config, ListConfig):
-        return config
+        return list(config)
     elif isinstance(config, str):
         slice_def = config.split(":")
 
