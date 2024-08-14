@@ -5,6 +5,7 @@ sampling_cfg:
   batch_size: 1
   num_workers: 0
   sampler:
+    _convert_: object
     _target_: torch.utils.data.SubsetRandomSampler
     indices: [ 0 ]  # To be evaluated samples
 dataset_cfg:
