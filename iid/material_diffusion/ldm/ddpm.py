@@ -16,16 +16,13 @@ from werkzeug.routing import Map
 
 class LatentImages2ImageDiffusion(LatentFinetuneDiffusion):
     """
-    condition on monocular depth estimation
+    Image-conditional Latent Diffusion Model
     """
 
     def __init__(self, concat_encoding_stage_config, concat_keys=("midas_in",), *args, **kwargs):
         super().__init__(concat_keys=concat_keys, *args, **kwargs)
         self.concat_encoding_stage_config = concat_encoding_stage_config
         self.concat_encoder = self.get_concat_encoder(concat_encoding_stage_config)
-        # Register logvar as buffer
-        self.logvar = nn.Parameter(self.logvar, requires_grad=False)
-        # self.depth_stage_key = concat_keys[0]
 
     def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
         sd = torch.load(path, map_location="cpu")
